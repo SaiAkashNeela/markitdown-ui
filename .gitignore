@@ -3,3 +3,6 @@ node_modules
 dist
 build
 .parcel-cache
+*.pdf
+__pycache__/*
+*.pyc

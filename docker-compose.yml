@@ -1,0 +1,17 @@
+services:
+  markitdown:
+    build: ./markitdown-server
+    ports:
+      - "8001:8001"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+    restart: unless-stopped
+
+  ui:
+    build: .
+    ports:
+      - "8002:80"
+    depends_on:
+      - markitdown
+    restart: unless-stopped
