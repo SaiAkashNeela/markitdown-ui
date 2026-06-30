@@ -154,6 +154,42 @@
     gap: 8px;
   }
 
+  .backend-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .backend-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .backend-toggle input {
+    accent-color: var(--accent);
+  }
+
+  .backend-config {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .backend-config.show {
+    display: flex;
+  }
+
+  .backend-hint {
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
   input[type="text"] {
     flex: 1;
     background: var(--surface);
@@ -448,6 +484,20 @@
     </div>
 
     <div class="section">
+      <div class="section-label">Backend</div>
+      <div class="backend-row">
+        <label class="backend-toggle" for="useCloudflare">
+          <input type="checkbox" id="useCloudflare" />
+          <span>Use Cloudflare</span>
+        </label>
+        <div class="backend-config" id="cloudflareConfig">
+          <input type="text" id="cloudflareUrlInput" placeholder="https://your-worker.workers.dev" />
+          <div class="backend-hint">Enter the deployed Worker URL, or your local wrangler dev URL while testing.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <div id="status" class="status"></div>
       <button class="btn btn-primary convert-btn" id="convertBtn">Convert</button>
     </div>
@@ -481,6 +531,9 @@
   let currentMd = '';
   let currentTab = 'rendered';
   let currentFilename = 'output';
+  const localBackendBase = '/api';
+  const cloudflareUrlKey = 'markitdown.cloudflareUrl';
+  const cloudflareEnabledKey = 'markitdown.useCloudflare';
 
   const fileInput = document.getElementById('fileInput');
   const fileLabel = document.getElementById('fileLabel');
@@ -493,6 +546,53 @@
   const copyBtn = document.getElementById('copyBtn');
   const charCount = document.getElementById('charCount');
   const dropzone = document.getElementById('dropzone');
+  const useCloudflare = document.getElementById('useCloudflare');
+  const cloudflareConfig = document.getElementById('cloudflareConfig');
+  const cloudflareUrlInput = document.getElementById('cloudflareUrlInput');
+
+  function loadBackendPrefs() {
+    useCloudflare.checked = localStorage.getItem(cloudflareEnabledKey) === 'true';
+    cloudflareUrlInput.value = localStorage.getItem(cloudflareUrlKey) || '';
+    syncBackendUi();
+  }
+
+  function syncBackendUi() {
+    cloudflareConfig.classList.toggle('show', useCloudflare.checked);
+    if (!useCloudflare.checked) {
+      clearStatus();
+    }
+  }
+
+  function saveBackendPrefs() {
+    localStorage.setItem(cloudflareEnabledKey, useCloudflare.checked ? 'true' : 'false');
+    localStorage.setItem(cloudflareUrlKey, cloudflareUrlInput.value.trim());
+  }
+
+  function getApiBase() {
+    if (!useCloudflare.checked) return localBackendBase;
+    return cloudflareUrlInput.value.trim().replace(/\/+$/, '');
+  }
+
+  function makeApiUrl(path) {
+    const base = getApiBase();
+    return `${base}${path}`;
+  }
+
+  function requireCloudflareUrl() {
+    if (!useCloudflare.checked) return true;
+    const base = getApiBase();
+    if (!base) {
+      setStatus('error', 'Enter a Cloudflare Worker URL');
+      return false;
+    }
+    if (!/^https?:\/\//i.test(base) && !base.startsWith('http://127.0.0.1') && !base.startsWith('http://localhost')) {
+      setStatus('error', 'Cloudflare backend needs a full http or https URL');
+      return false;
+    }
+    return true;
+  }
+
+  loadBackendPrefs();
 
   // Drag and drop
   dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
@@ -521,6 +621,15 @@
       fileLabel.textContent = '';
       fileInput.value = '';
     }
+  });
+
+  useCloudflare.addEventListener('change', () => {
+    syncBackendUi();
+    saveBackendPrefs();
+  });
+
+  cloudflareUrlInput.addEventListener('input', () => {
+    saveBackendPrefs();
   });
 
   // Tab switching
@@ -584,11 +693,15 @@
     convertBtn.disabled = true;
 
     if (file) {
+      if (!requireCloudflareUrl()) {
+        convertBtn.disabled = false;
+        return;
+      }
       setStatus('loading', `Converting ${file.name}…`);
       const fd = new FormData();
       fd.append('file', file);
       try {
-        const res = await fetch('/api/convert', { method: 'POST', body: fd });
+        const res = await fetch(makeApiUrl('/convert'), { method: 'POST', body: fd });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         const md = data.success != null ? (data.markdown ?? '') : (data.markdown || data.result || data.text || JSON.stringify(data));
@@ -597,9 +710,13 @@
         setStatus('error', e.message);
       }
     } else {
+      if (!requireCloudflareUrl()) {
+        convertBtn.disabled = false;
+        return;
+      }
       setStatus('loading', 'Fetching and converting…');
       try {
-        const res = await fetch(`/api/convert-url?url=${encodeURIComponent(url)}`, { method: 'POST' });
+        const res = await fetch(makeApiUrl(`/convert-url?url=${encodeURIComponent(url)}`), { method: 'POST' });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         const md = data.success != null ? (data.markdown ?? '') : (data.markdown || data.result || data.text || JSON.stringify(data));

@@ -74,7 +74,7 @@ def _escape_md_cell(value: str) -> str:
     return value.replace("|", "\\|")
 
 
-def _table_to_markdown(table: list[list[str | None]]) -> str:
+def _normalize_table(table: list[list[str | None]]) -> list[list[str]]:
     rows: list[list[str]] = []
     for raw_row in table or []:
         cleaned = [_clean_cell(cell) for cell in (raw_row or [])]
@@ -82,7 +82,22 @@ def _table_to_markdown(table: list[list[str | None]]) -> str:
             cleaned.pop()
         if any(cleaned):
             rows.append(cleaned)
+    return rows
 
+
+def _table_score(rows: list[list[str]]) -> int:
+    if len(rows) < 2:
+        return 0
+
+    width = max(len(row) for row in rows)
+    if width < 2:
+        return 0
+
+    non_empty = sum(1 for row in rows for cell in row if cell)
+    return (len(rows) * width) + non_empty
+
+
+def _table_to_markdown(rows: list[list[str]]) -> str:
     if len(rows) < 2:
         return ""
 
@@ -111,14 +126,28 @@ def _extract_pdf_tables(file_path: str) -> str:
     sections: list[str] = []
     with pdfplumber.open(file_path) as pdf:
         for page_index, page in enumerate(pdf.pages, start=1):
-            page_tables = page.extract_tables() or []
-            page_sections: list[str] = []
-            for table_index, table in enumerate(page_tables, start=1):
-                table_md = _table_to_markdown(table)
+            best_rows: list[list[str]] = []
+            best_score = 0
+            strategies: list[dict[str, object] | None] = [
+                None,
+                {"vertical_strategy": "text", "horizontal_strategy": "text", "intersection_tolerance": 5},
+                {"vertical_strategy": "text", "horizontal_strategy": "lines", "intersection_tolerance": 5},
+            ]
+            for settings in strategies:
+                try:
+                    page_tables = page.extract_tables(table_settings=settings) if settings else page.extract_tables()
+                except Exception:
+                    continue
+                for table in page_tables or []:
+                    rows = _normalize_table(table)
+                    score = _table_score(rows)
+                    if score > best_score:
+                        best_rows = rows
+                        best_score = score
+            if best_score >= 50:
+                table_md = _table_to_markdown(best_rows)
                 if table_md:
-                    page_sections.append(f"### Page {page_index} Table {table_index}\n\n{table_md}")
-            if page_sections:
-                sections.append("\n\n".join(page_sections))
+                    sections.append(f"### Page {page_index}\n\n{table_md}")
 
     if not sections:
         return ""

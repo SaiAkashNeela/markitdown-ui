@@ -1,0 +1,13 @@
+{
+  "name": "markitdown-cloudflare-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev src/index.js",
+    "deploy": "wrangler deploy src/index.js",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "wrangler": "^4.106.0"
+  }
+}

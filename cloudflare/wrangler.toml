@@ -1,0 +1,6 @@
+name = "markitdown-cloudflare"
+main = "src/index.js"
+compatibility_date = "2026-06-30"
+
+[ai]
+binding = "AI"
