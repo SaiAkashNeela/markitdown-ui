@@ -668,8 +668,10 @@
   function showResult(md, filename) {
     currentMd = md;
     if (filename) currentFilename = filename;
+    currentTab = 'rendered';
     charCount.textContent = md.length ? `${md.length.toLocaleString()} chars` : '';
     tabGroup.style.display = '';
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === currentTab));
     downloadBtn.style.display = md.length ? '' : 'none';
     copyBtn.style.display = md.length ? '' : 'none';
     if (!md.length) {

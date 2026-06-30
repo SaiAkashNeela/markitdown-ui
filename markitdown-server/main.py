@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import os
+import re
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from itertools import zip_longest
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -122,6 +124,277 @@ def _table_to_markdown(rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
+def _normalize_ws(text: str) -> str:
+    return " ".join(text.split()).strip()
+
+
+def _cluster_words_into_rows(words: list[dict[str, object]], tolerance: float = 2.0) -> list[list[dict[str, object]]]:
+    sorted_words = sorted(words, key=lambda word: (float(word["top"]), float(word["x0"])))
+    rows: list[list[dict[str, object]]] = []
+    current_row: list[dict[str, object]] = []
+    current_top: float | None = None
+
+    for word in sorted_words:
+        top = float(word["top"])
+        if current_top is None or abs(top - current_top) <= tolerance:
+            current_row.append(word)
+            if current_top is None:
+                current_top = top
+            else:
+                current_top = (current_top * (len(current_row) - 1) + top) / len(current_row)
+        else:
+            rows.append(current_row)
+            current_row = [word]
+            current_top = top
+
+    if current_row:
+        rows.append(current_row)
+
+    return rows
+
+
+def _row_text(row: list[dict[str, object]]) -> str:
+    return " ".join(str(word["text"]) for word in sorted(row, key=lambda item: float(item["x0"]))).strip()
+
+
+def _is_meal_title(text: str) -> bool:
+    return bool(re.match(r"^(M\d+|S\d+)\b", text))
+
+
+def _is_table_header(text: str) -> bool:
+    return "Ingredient" in text and "kcal" in text and "Protein" in text
+
+
+def _build_column_anchors(header_rows: list[list[dict[str, object]]]) -> list[float]:
+    header_only_rows = [row for row in header_rows if not re.search(r"\d", _row_text(row))]
+    sorted_words = sorted(
+        (word for row in header_only_rows for word in row),
+        key=lambda word: (float(word["top"]), float(word["x0"])),
+    )
+    header_keys = [
+        ("Ingredient",),
+        ("Cup", "Count", "Measure"),
+        ("Weight",),
+        ("kcal",),
+        ("Protein",),
+        ("Carbs",),
+        ("Fat",),
+        ("Fibre",),
+        ("Salt",),
+    ]
+    anchors: list[float | None] = []
+    for key_group in header_keys:
+        matched = next(
+            (
+                word
+                for word in sorted_words
+                if any(str(word["text"]).lower().startswith(key.lower()) for key in key_group)
+            ),
+            None,
+        )
+        anchors.append(float(matched["x0"]) if matched else None)
+
+    known_positions = [anchor for anchor in anchors if anchor is not None]
+    if len(known_positions) < 2:
+        return []
+
+    filled: list[float] = []
+    last_known: float | None = None
+    next_known: list[float | None] = [None] * len(anchors)
+    upcoming: float | None = None
+    for index in range(len(anchors) - 1, -1, -1):
+        if anchors[index] is not None:
+            upcoming = anchors[index]
+        next_known[index] = upcoming
+
+    for index, anchor in enumerate(anchors):
+        if anchor is not None:
+            last_known = anchor
+            filled.append(anchor)
+        elif last_known is not None:
+            filled.append(last_known)
+        elif next_known[index] is not None:
+            filled.append(next_known[index])
+
+    return filled
+
+
+def _assign_row_to_cells(row: list[dict[str, object]], anchors: list[float]) -> list[str]:
+    cells = ["" for _ in anchors]
+    for word in sorted(row, key=lambda item: float(item["x0"])):
+        x0 = float(word["x0"])
+        cell_index = min(range(len(anchors)), key=lambda index: abs(x0 - anchors[index]))
+        cell_text = str(word["text"]).strip()
+        if cell_text:
+            cells[cell_index] = f"{cells[cell_index]} {cell_text}".strip() if cells[cell_index] else cell_text
+    return cells
+
+
+def _merge_rows(left: list[str], right: list[str]) -> list[str]:
+    merged: list[str] = []
+    for left_cell, right_cell in zip_longest(left, right, fillvalue=""):
+        pieces = [piece for piece in (left_cell, right_cell) if piece]
+        merged.append(" ".join(pieces).strip())
+    return merged
+
+
+def _extract_word_based_pdf_tables(file_path: str) -> str:
+    sections: list[str] = []
+    with pdfplumber.open(file_path) as pdf:
+        for page_index, page in enumerate(pdf.pages, start=1):
+            rows = _cluster_words_into_rows(page.extract_words(use_text_flow=True, keep_blank_chars=False) or [])
+            title_indexes = [index for index, row in enumerate(rows) if _is_meal_title(_row_text(row))]
+            if not title_indexes:
+                continue
+
+            page_sections: list[str] = []
+            for title_pos, title_index in enumerate(title_indexes):
+                next_title_index = title_indexes[title_pos + 1] if title_pos + 1 < len(title_indexes) else len(rows)
+                title_text = _row_text(rows[title_index])
+                header_index = None
+                for candidate_index in range(title_index + 1, next_title_index):
+                    if _is_table_header(_row_text(rows[candidate_index])):
+                        header_index = candidate_index
+                        break
+                if header_index is None:
+                    continue
+
+                header_scan_rows = rows[title_index + 1 : min(next_title_index, header_index + 4)]
+                anchors = _build_column_anchors(header_scan_rows)
+                if len(anchors) < 2:
+                    continue
+
+                table_rows: list[list[str]] = []
+                pending_prefix: list[str] | None = None
+
+                for row in rows[header_index + 1 : next_title_index]:
+                    row_text = _row_text(row)
+                    if not row_text:
+                        continue
+                    if row_text in {"Indian", "Western", "Snack"}:
+                        continue
+                    if _is_meal_title(row_text):
+                        break
+                    if row_text.startswith("TOTAL"):
+                        if pending_prefix:
+                            pending_prefix = None
+                        total_cells = _assign_row_to_cells(row, anchors)
+                        if any(total_cells):
+                            table_rows.append(total_cells)
+                        break
+
+                    cells = _assign_row_to_cells(row, anchors)
+                    has_numeric_payload = any(re.search(r"\d", cell) for cell in cells[2:] if cell)
+                    non_empty_cells = sum(1 for cell in cells if cell)
+
+                    if has_numeric_payload:
+                        if pending_prefix:
+                            cells = _merge_rows(pending_prefix, cells)
+                            pending_prefix = None
+                        table_rows.append(cells)
+                        continue
+
+                    if non_empty_cells >= 2 and cells[0]:
+                        pending_prefix = _merge_rows(pending_prefix, cells) if pending_prefix else cells
+                        continue
+
+                    if table_rows:
+                        table_rows[-1] = _merge_rows(table_rows[-1], cells)
+
+                if len(table_rows) >= 2:
+                    table_md = _table_to_markdown(
+                        [
+                            [
+                                "Ingredient",
+                                "Cup / Count Measure",
+                                "Weight",
+                                "kcal",
+                                "Protein",
+                                "Carbs (sugar)",
+                                "Fat (sat)",
+                                "Fibre",
+                                "Salt",
+                            ]
+                        ]
+                        + table_rows
+                    )
+                    if table_md:
+                        page_sections.append(f"### {title_text}\n\n{table_md}")
+
+            if page_sections:
+                sections.extend(page_sections)
+
+    if not sections:
+        return ""
+    return "## Extracted tables\n\n" + "\n\n".join(sections)
+
+
+def _inline_table_sections(text_md: str, table_md: str) -> str:
+    table_sections: dict[str, tuple[str, str]] = {}
+    current_title = ""
+    current_body: list[str] = []
+
+    for line in table_md.splitlines():
+        if line.startswith("### "):
+            if current_title:
+                normalized_title = _normalize_ws(current_title)
+                table_sections[normalized_title] = (current_title, "\n".join(current_body).strip())
+            current_title = line[4:].strip()
+            current_body = []
+        elif line.startswith("## "):
+            continue
+        else:
+            current_body.append(line)
+
+    if current_title:
+        normalized_title = _normalize_ws(current_title)
+        table_sections[normalized_title] = (current_title, "\n".join(current_body).strip())
+
+    if not table_sections:
+        return text_md
+
+    title_keys = sorted(table_sections.keys(), key=len, reverse=True)
+    note_prefixes = ("Tip:", "Best ", "Highest ", "Lowest ", "* ", "Cup =")
+    lines = text_md.splitlines()
+    merged_lines: list[str] = []
+    index = 0
+
+    while index < len(lines):
+        current_line = lines[index]
+        normalized_line = _normalize_ws(current_line)
+        matched_key = next((key for key in title_keys if normalized_line == key), None)
+
+        if not matched_key:
+            merged_lines.append(current_line)
+            index += 1
+            continue
+
+        title, body = table_sections[matched_key]
+        merged_lines.append(title)
+        if body:
+            merged_lines.append(body)
+
+        next_title_index = index + 1
+        while next_title_index < len(lines):
+            candidate = _normalize_ws(lines[next_title_index])
+            if any(candidate == key for key in title_keys):
+                break
+            next_title_index += 1
+
+        saw_total = False
+        for note_line in lines[index + 1 : next_title_index]:
+            normalized_note = _normalize_ws(note_line)
+            if not saw_total and normalized_note.startswith("TOTAL"):
+                saw_total = True
+                continue
+            if saw_total and normalized_note and note_line.startswith(note_prefixes):
+                merged_lines.append(note_line)
+
+        index = next_title_index
+
+    return "\n".join(merged_lines).strip()
+
+
 def _extract_pdf_tables(file_path: str) -> str:
     sections: list[str] = []
     with pdfplumber.open(file_path) as pdf:
@@ -149,6 +422,10 @@ def _extract_pdf_tables(file_path: str) -> str:
                 if table_md:
                     sections.append(f"### Page {page_index}\n\n{table_md}")
 
+    word_based_tables = _extract_word_based_pdf_tables(file_path)
+    if word_based_tables:
+        return word_based_tables
+
     if not sections:
         return ""
     return "## Extracted tables\n\n" + "\n\n".join(sections)
@@ -159,7 +436,8 @@ def _convert_pdf_sync(file_path: str) -> str:
     table_md = _extract_pdf_tables(file_path)
     if table_md:
         if text_md.strip():
-            return f"{text_md.rstrip()}\n\n{table_md.lstrip()}"
+            inline_md = _inline_table_sections(text_md, table_md)
+            return inline_md if inline_md.strip() else f"{text_md.rstrip()}\n\n{table_md.lstrip()}"
         return table_md
 
     if text_md.strip():
