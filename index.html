@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MarkItDown</title>
+<title>Docling Document Converter</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,12 +44,6 @@
     font-size: 16px;
     font-weight: 600;
     letter-spacing: -0.01em;
-  }
-
-  header span {
-    font-size: 12px;
-    color: var(--muted);
-    font-family: var(--mono);
   }
 
   .badge {
@@ -154,76 +148,6 @@
     gap: 8px;
   }
 
-  .backend-row {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .mode-group {
-    display: inline-flex;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    width: 100%;
-  }
-
-  .mode-btn {
-    flex: 1;
-    border: none;
-    background: var(--surface);
-    color: var(--muted);
-    padding: 10px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
-
-  .mode-btn + .mode-btn {
-    border-left: 1px solid var(--border);
-  }
-
-  .mode-btn.active {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .mode-btn:hover:not(.active) {
-    background: rgba(255,255,255,0.04);
-    color: var(--text);
-  }
-
-  .backend-toggle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 13px;
-    color: var(--text);
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .backend-toggle input {
-    accent-color: var(--accent);
-  }
-
-  .backend-config {
-    display: none;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .backend-config.show {
-    display: flex;
-  }
-
-  .backend-hint {
-    font-size: 11px;
-    line-height: 1.4;
-    color: var(--muted);
-  }
-
   input[type="text"] {
     flex: 1;
     background: var(--surface);
@@ -243,6 +167,49 @@
 
   input[type="text"]::placeholder {
     color: var(--muted);
+  }
+
+  select {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  select:focus {
+    border-color: var(--accent);
+  }
+
+  .options-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .option-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .option-hint {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.3;
   }
 
   /* Buttons */
@@ -297,74 +264,72 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     display: inline-block;
-    width: 10px;
-    height: 10px;
-    border: 1.5px solid currentColor;
-    border-top-color: transparent;
+    width: 11px;
+    height: 11px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
-    margin-right: 6px;
+    margin-right: 8px;
     vertical-align: middle;
   }
 
-  /* Preview pane */
+  /* Preview Panel */
   .preview-header {
-    padding: 14px 20px;
+    padding: 14px 28px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-shrink: 0;
+    gap: 16px;
   }
 
   .preview-header-left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 16px;
   }
 
   .preview-label {
     font-size: 11px;
     font-weight: 600;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--muted);
   }
 
   .tab-group {
     display: flex;
-    gap: 4px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 3px;
+    padding: 2px;
+    gap: 2px;
   }
 
   .tab {
-    padding: 4px 10px;
+    padding: 4px 12px;
     font-size: 12px;
     border-radius: 4px;
     cursor: pointer;
     color: var(--muted);
+    transition: color 0.15s, background 0.15s;
     user-select: none;
-    transition: background 0.12s, color 0.12s;
   }
 
   .tab.active {
-    background: var(--accent);
-    color: #fff;
+    background: var(--border);
+    color: var(--text);
   }
-
-  .tab:not(.active):hover { color: var(--text); }
 
   .preview-actions {
     display: flex;
-    gap: 8px;
     align-items: center;
+    gap: 8px;
   }
 
   .char-count {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--muted);
     font-family: var(--mono);
   }
@@ -372,7 +337,7 @@
   .preview-content {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 28px;
+    padding: 28px;
   }
 
   .preview-empty {
@@ -382,80 +347,75 @@
     align-items: center;
     justify-content: center;
     color: var(--muted);
-    gap: 8px;
+    gap: 12px;
     text-align: center;
   }
 
-  .preview-empty-icon { font-size: 36px; }
-  .preview-empty p { font-size: 13px; }
+  .preview-empty-icon { font-size: 32px; opacity: 0.4; }
 
-  /* Rendered markdown styles */
+  /* Rendered Markdown Styling */
   .markdown-body {
-    line-height: 1.7;
-    color: var(--text);
-    max-width: 760px;
+    line-height: 1.6;
+    max-width: 860px;
+    margin: 0 auto;
   }
 
   .markdown-body h1, .markdown-body h2, .markdown-body h3,
   .markdown-body h4, .markdown-body h5, .markdown-body h6 {
-    margin: 1.4em 0 0.5em;
-    line-height: 1.3;
+    margin-top: 1.4em;
+    margin-bottom: 0.6em;
     font-weight: 600;
+    line-height: 1.25;
   }
 
-  .markdown-body h1 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
-  .markdown-body h2 { font-size: 1.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
-  .markdown-body h3 { font-size: 1.1em; }
+  .markdown-body h1 { font-size: 1.8em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+  .markdown-body h2 { font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+  .markdown-body h3 { font-size: 1.15em; }
 
-  .markdown-body p { margin: 0.75em 0; }
+  .markdown-body p { margin-bottom: 1em; }
 
-  .markdown-body a { color: var(--accent-hover); text-decoration: none; }
-  .markdown-body a:hover { text-decoration: underline; }
+  .markdown-body ul, .markdown-body ol {
+    margin-bottom: 1em;
+    padding-left: 1.6em;
+  }
+
+  .markdown-body li { margin-bottom: 0.3em; }
 
   .markdown-body code {
-    font-family: var(--mono);
-    font-size: 0.875em;
     background: var(--surface);
     border: 1px solid var(--border);
-    padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: var(--mono);
+    font-size: 0.88em;
   }
 
   .markdown-body pre {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 14px 16px;
+    padding: 16px;
     overflow-x: auto;
-    margin: 1em 0;
+    margin-bottom: 1em;
   }
 
   .markdown-body pre code {
     background: none;
     border: none;
     padding: 0;
-    font-size: 0.85em;
   }
 
   .markdown-body blockquote {
     border-left: 3px solid var(--accent);
-    margin: 1em 0;
-    padding: 4px 16px;
+    padding-left: 16px;
     color: var(--muted);
+    margin-bottom: 1em;
   }
-
-  .markdown-body ul, .markdown-body ol {
-    margin: 0.75em 0;
-    padding-left: 1.6em;
-  }
-
-  .markdown-body li { margin: 0.3em 0; }
 
   .markdown-body table {
-    border-collapse: collapse;
     width: 100%;
-    margin: 1em 0;
-    font-size: 0.9em;
+    border-collapse: collapse;
+    margin-bottom: 1em;
   }
 
   .markdown-body th, .markdown-body td {
@@ -464,35 +424,31 @@
     text-align: left;
   }
 
-  .markdown-body th { background: var(--surface); font-weight: 600; }
-  .markdown-body tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .markdown-body th { background: var(--surface); }
 
-  .markdown-body hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+  .markdown-body hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2em 0;
+  }
 
-  .markdown-body img { max-width: 100%; border-radius: var(--radius); }
-
-  /* Raw view */
   .raw-content {
     font-family: var(--mono);
     font-size: 13px;
-    line-height: 1.6;
-    color: var(--text);
     white-space: pre-wrap;
     word-break: break-word;
-  }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-    .panel-left { border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
+    line-height: 1.5;
+    max-width: 860px;
+    margin: 0 auto;
+    color: #d4d4d4;
   }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>MarkItDown</h1>
-  <span class="badge">microsoft/markitdown</span>
+  <h1>Docling Converter</h1>
+  <span class="badge">docling-project/docling</span>
 </header>
 
 <main>
@@ -504,7 +460,7 @@
         <span class="dropzone-icon">📄</span>
         <div class="dropzone-text">
           <strong>Click to browse</strong> or drag &amp; drop<br>
-          PDF, DOCX, PPTX, XLSX, HTML, images, audio…
+          PDF, DOCX, PPTX, XLSX, HTML, images…
         </div>
         <div class="file-selected" id="fileLabel"></div>
       </div>
@@ -518,19 +474,41 @@
     </div>
 
     <div class="section">
-      <div class="section-label">Backend</div>
-      <div class="backend-row">
-        <div class="mode-group" id="backendModeGroup" role="tablist" aria-label="Backend mode">
-          <button type="button" class="mode-btn active" data-mode="markitdown">MarkItDown</button>
-          <button type="button" class="mode-btn" data-mode="docling">Docling</button>
+      <div class="section-label">PDF Engine Settings</div>
+      <div class="options-grid">
+        <div class="option-group">
+          <label class="option-label" for="pdfBackendSelect">PDF Backend Parser</label>
+          <select id="pdfBackendSelect">
+            <option value="pypdfium2" selected>pypdfium2 (Recommended - Extracts All Pages)</option>
+            <option value="docling_parse">docling_parse (DL Layout Model)</option>
+            <option value="dlparse_v2">dlparse_v2 (DL Parse v2)</option>
+          </select>
+          <span class="option-hint">Switch to pypdfium2 if docling_parse cuts off complex multi-page PDFs.</span>
         </div>
-        <div class="backend-hint" id="backendHint"></div>
+
+        <div class="option-group">
+          <label class="option-label" for="ocrModeSelect">OCR Processing</label>
+          <select id="ocrModeSelect">
+            <option value="off" selected>Off (Fastest for text PDFs)</option>
+            <option value="auto">Auto / On</option>
+            <option value="force">Force OCR (Scanned / Image Pages)</option>
+          </select>
+          <span class="option-hint">Use Force OCR if pages 2+ contain scanned images or rasterized text.</span>
+        </div>
+
+        <div class="option-group">
+          <label class="option-label" for="tableModeSelect">Table Detection</label>
+          <select id="tableModeSelect">
+            <option value="fast" selected>Fast</option>
+            <option value="accurate">Accurate (TableFormer AI)</option>
+          </select>
+        </div>
       </div>
     </div>
 
     <div class="section">
       <div id="status" class="status"></div>
-      <button class="btn btn-primary convert-btn" id="convertBtn">Convert</button>
+      <button class="btn btn-primary convert-btn" id="convertBtn">Convert Document</button>
     </div>
   </div>
 
@@ -562,14 +540,13 @@
   let currentMd = '';
   let currentTab = 'rendered';
   let currentFilename = 'output';
-  const localBackendBase = '/api';
-  const doclingBackendBase = '/docling-api';
-  const backendModeKey = 'markitdown.backendMode';
-  const backendModes = ['markitdown', 'docling'];
 
   const fileInput = document.getElementById('fileInput');
   const fileLabel = document.getElementById('fileLabel');
   const urlInput = document.getElementById('urlInput');
+  const pdfBackendSelect = document.getElementById('pdfBackendSelect');
+  const ocrModeSelect = document.getElementById('ocrModeSelect');
+  const tableModeSelect = document.getElementById('tableModeSelect');
   const convertBtn = document.getElementById('convertBtn');
   const status = document.getElementById('status');
   const previewContent = document.getElementById('previewContent');
@@ -578,40 +555,6 @@
   const copyBtn = document.getElementById('copyBtn');
   const charCount = document.getElementById('charCount');
   const dropzone = document.getElementById('dropzone');
-  const backendModeButtons = Array.from(document.querySelectorAll('.mode-btn'));
-  const backendHint = document.getElementById('backendHint');
-  let backendMode = 'markitdown';
-
-  function loadBackendPrefs() {
-    const savedMode = localStorage.getItem(backendModeKey);
-    backendMode = backendModes.includes(savedMode) ? savedMode : 'markitdown';
-    syncBackendUi();
-  }
-
-  function syncBackendUi() {
-    backendModeButtons.forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mode === backendMode);
-      btn.setAttribute('aria-selected', btn.dataset.mode === backendMode ? 'true' : 'false');
-    });
-    backendHint.textContent = backendMode === 'markitdown'
-      ? 'Local MarkItDown — backend on port 8001.'
-      : 'Local Docling — backend on port 8002.';
-    clearStatus();
-  }
-
-  function saveBackendPrefs() {
-    localStorage.setItem(backendModeKey, backendMode);
-  }
-
-  function getApiBase() {
-    return backendMode === 'docling' ? doclingBackendBase : localBackendBase;
-  }
-
-  function makeApiUrl(path) {
-    return `${getApiBase()}${path}`;
-  }
-
-  loadBackendPrefs();
 
   // Drag and drop
   dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
@@ -641,16 +584,6 @@
       fileInput.value = '';
     }
   });
-
-  backendModeButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      backendMode = btn.dataset.mode || 'markitdown';
-      syncBackendUi();
-      saveBackendPrefs();
-    });
-  });
-
-
 
   // Tab switching
   document.querySelectorAll('.tab').forEach(t => {
@@ -695,7 +628,7 @@
     downloadBtn.style.display = md.length ? '' : 'none';
     copyBtn.style.display = md.length ? '' : 'none';
     if (!md.length) {
-      previewContent.innerHTML = `<div class="preview-empty"><span class="preview-empty-icon">⚠️</span><p>No text extracted — the file may be empty or the URL returned no parseable content.</p></div>`;
+      previewContent.innerHTML = `<div class="preview-empty"><span class="preview-empty-icon">⚠️</span><p>No text extracted — file may be empty or selected PDF backend / OCR settings yielded no text.</p></div>`;
       clearStatus();
       return;
     }
@@ -704,12 +637,23 @@
   }
 
   async function callDocling(file, url) {
+    const pdfBackend = pdfBackendSelect.value;
+    const ocrMode = ocrModeSelect.value;
+    const tableMode = tableModeSelect.value;
+
+    const doOcr = ocrMode !== 'off';
+    const forceOcr = ocrMode === 'force';
+
     if (file) {
       const fd = new FormData();
       fd.append('files', file);
       fd.append('to_formats', 'md');
-      fd.append('do_ocr', 'false');
-      fd.append('do_table_structure', 'true');
+      fd.append('pdf_backend', pdfBackend);
+      fd.append('table_mode', tableMode);
+      fd.append('do_ocr', doOcr ? 'true' : 'false');
+      fd.append('force_ocr', forceOcr ? 'true' : 'false');
+      fd.append('abort_on_error', 'false');
+
       const res = await fetch('/docling-api/v1/convert/file', { method: 'POST', body: fd });
       if (!res.ok) throw new Error(`Docling error ${res.status}`);
       const data = await res.json();
@@ -721,7 +665,17 @@
       const res = await fetch('/docling-api/v1/convert/source', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sources: [{ kind: 'http', url }], options: { to_formats: ['md'], do_ocr: false, do_table_structure: true } }),
+        body: JSON.stringify({
+          sources: [{ kind: 'http', url }],
+          options: {
+            to_formats: ['md'],
+            pdf_backend: pdfBackend,
+            table_mode: tableMode,
+            do_ocr: doOcr,
+            force_ocr: forceOcr,
+            abort_on_error: false
+          }
+        }),
       });
       if (!res.ok) throw new Error(`Docling error ${res.status}`);
       const data = await res.json();
@@ -746,17 +700,7 @@
     if (file) {
       setStatus('loading', `Converting ${file.name}…`);
       try {
-        let md;
-        if (backendMode === 'docling') {
-          md = await callDocling(file, null);
-        } else {
-          const fd = new FormData();
-          fd.append('file', file);
-          const res = await fetch(makeApiUrl('/convert'), { method: 'POST', body: fd });
-          if (!res.ok) throw new Error(`Server error ${res.status}`);
-          const data = await res.json();
-          md = data.markdown ?? '';
-        }
+        const md = await callDocling(file, null);
         showResult(md, currentFilename);
       } catch (e) {
         setStatus('error', e.message);
@@ -764,15 +708,7 @@
     } else {
       setStatus('loading', 'Fetching and converting…');
       try {
-        let md;
-        if (backendMode === 'docling') {
-          md = await callDocling(null, url);
-        } else {
-          const res = await fetch(makeApiUrl(`/convert-url?url=${encodeURIComponent(url)}`), { method: 'POST' });
-          if (!res.ok) throw new Error(`Server error ${res.status}`);
-          const data = await res.json();
-          md = data.markdown ?? '';
-        }
+        const md = await callDocling(null, url);
         const urlHost = new URL(url).hostname.replace(/\./g, '-');
         showResult(md, urlHost);
       } catch (e) {
