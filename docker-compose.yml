@@ -1,24 +1,17 @@
 services:
-  markitdown:
-    build: ./markitdown-server
-    ports:
-      - "8001:8001"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
-    restart: unless-stopped
-
   docling:
-    build: ./docling
+    image: quay.io/docling-project/docling-serve:latest
     ports:
-      - "8003:8003"
+      - "8002:5001"
+    environment:
+      - DOCLING_SERVE_MAX_NUM_PAGES=10000
+      - DOCLING_SERVE_MAX_DOCUMENT_TIMEOUT=600
     restart: unless-stopped
 
   ui:
     build: .
     ports:
-      - "8002:80"
+      - "8003:80"
     depends_on:
-      - markitdown
       - docling
     restart: unless-stopped

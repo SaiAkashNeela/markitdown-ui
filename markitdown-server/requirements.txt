@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-gunicorn
-python-multipart
-markitdown[all]
-markitdown-ocr
-openai
-playwright

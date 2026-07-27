@@ -523,13 +523,8 @@
         <div class="mode-group" id="backendModeGroup" role="tablist" aria-label="Backend mode">
           <button type="button" class="mode-btn active" data-mode="markitdown">MarkItDown</button>
           <button type="button" class="mode-btn" data-mode="docling">Docling</button>
-          <button type="button" class="mode-btn" data-mode="cloudflare">Cloudflare</button>
         </div>
         <div class="backend-hint" id="backendHint"></div>
-        <div class="backend-config" id="cloudflareConfig">
-          <input type="text" id="cloudflareUrlInput" placeholder="https://your-worker.workers.dev" />
-          <div class="backend-hint">Enter the deployed Worker URL, or your local wrangler dev URL while testing.</div>
-        </div>
       </div>
     </div>
 
@@ -569,9 +564,8 @@
   let currentFilename = 'output';
   const localBackendBase = '/api';
   const doclingBackendBase = '/docling-api';
-  const cloudflareUrlKey = 'markitdown.cloudflareUrl';
   const backendModeKey = 'markitdown.backendMode';
-  const backendModes = ['markitdown', 'docling', 'cloudflare'];
+  const backendModes = ['markitdown', 'docling'];
 
   const fileInput = document.getElementById('fileInput');
   const fileLabel = document.getElementById('fileLabel');
@@ -586,14 +580,11 @@
   const dropzone = document.getElementById('dropzone');
   const backendModeButtons = Array.from(document.querySelectorAll('.mode-btn'));
   const backendHint = document.getElementById('backendHint');
-  const cloudflareConfig = document.getElementById('cloudflareConfig');
-  const cloudflareUrlInput = document.getElementById('cloudflareUrlInput');
   let backendMode = 'markitdown';
 
   function loadBackendPrefs() {
     const savedMode = localStorage.getItem(backendModeKey);
     backendMode = backendModes.includes(savedMode) ? savedMode : 'markitdown';
-    cloudflareUrlInput.value = localStorage.getItem(cloudflareUrlKey) || '';
     syncBackendUi();
   }
 
@@ -602,45 +593,22 @@
       btn.classList.toggle('active', btn.dataset.mode === backendMode);
       btn.setAttribute('aria-selected', btn.dataset.mode === backendMode ? 'true' : 'false');
     });
-    cloudflareConfig.classList.toggle('show', backendMode === 'cloudflare');
     backendHint.textContent = backendMode === 'markitdown'
-      ? 'Local MarkItDown uses the backend on port 8001.'
-      : backendMode === 'docling'
-        ? 'Local Docling uses the backend on port 8003.'
-        : 'Cloudflare uses the configured Worker URL.';
-    if (backendMode !== 'cloudflare') {
-      clearStatus();
-    }
+      ? 'Local MarkItDown — backend on port 8001.'
+      : 'Local Docling — backend on port 8002.';
+    clearStatus();
   }
 
   function saveBackendPrefs() {
     localStorage.setItem(backendModeKey, backendMode);
-    localStorage.setItem(cloudflareUrlKey, cloudflareUrlInput.value.trim());
   }
 
   function getApiBase() {
-    if (backendMode === 'docling') return doclingBackendBase;
-    if (backendMode === 'cloudflare') return cloudflareUrlInput.value.trim().replace(/\/+$/, '');
-    return localBackendBase;
+    return backendMode === 'docling' ? doclingBackendBase : localBackendBase;
   }
 
   function makeApiUrl(path) {
-    const base = getApiBase();
-    return `${base}${path}`;
-  }
-
-  function requireCloudflareUrl() {
-    if (backendMode !== 'cloudflare') return true;
-    const base = getApiBase();
-    if (!base) {
-      setStatus('error', 'Enter a Cloudflare Worker URL');
-      return false;
-    }
-    if (!/^https?:\/\//i.test(base) && !base.startsWith('http://127.0.0.1') && !base.startsWith('http://localhost')) {
-      setStatus('error', 'Cloudflare backend needs a full http or https URL');
-      return false;
-    }
-    return true;
+    return `${getApiBase()}${path}`;
   }
 
   loadBackendPrefs();
@@ -682,9 +650,7 @@
     });
   });
 
-  cloudflareUrlInput.addEventListener('input', () => {
-    saveBackendPrefs();
-  });
+
 
   // Tab switching
   document.querySelectorAll('.tab').forEach(t => {
@@ -729,12 +695,41 @@
     downloadBtn.style.display = md.length ? '' : 'none';
     copyBtn.style.display = md.length ? '' : 'none';
     if (!md.length) {
-      previewContent.innerHTML = `<div class="preview-empty"><span class="preview-empty-icon">⚠️</span><p>No text extracted — file may be a scanned/image-only PDF requiring OCR, or the URL returned no parseable content.</p></div>`;
+      previewContent.innerHTML = `<div class="preview-empty"><span class="preview-empty-icon">⚠️</span><p>No text extracted — the file may be empty or the URL returned no parseable content.</p></div>`;
       clearStatus();
       return;
     }
     renderOutput();
     clearStatus();
+  }
+
+  async function callDocling(file, url) {
+    if (file) {
+      const fd = new FormData();
+      fd.append('files', file);
+      fd.append('to_formats', 'md');
+      fd.append('do_ocr', 'false');
+      fd.append('do_table_structure', 'true');
+      const res = await fetch('/docling-api/v1/convert/file', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error(`Docling error ${res.status}`);
+      const data = await res.json();
+      if (data.status === 'failure' && data.errors && data.errors.length) {
+        throw new Error(data.errors[0].error_message || 'Docling conversion failed');
+      }
+      return data?.document?.md_content ?? data?.result ?? '';
+    } else {
+      const res = await fetch('/docling-api/v1/convert/source', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sources: [{ kind: 'http', url }], options: { to_formats: ['md'], do_ocr: false, do_table_structure: true } }),
+      });
+      if (!res.ok) throw new Error(`Docling error ${res.status}`);
+      const data = await res.json();
+      if (data.status === 'failure' && data.errors && data.errors.length) {
+        throw new Error(data.errors[0].error_message || 'Docling conversion failed');
+      }
+      return data?.document?.md_content ?? data?.result ?? '';
+    }
   }
 
   convertBtn.addEventListener('click', async () => {
@@ -749,33 +744,35 @@
     convertBtn.disabled = true;
 
     if (file) {
-      if (!requireCloudflareUrl()) {
-        convertBtn.disabled = false;
-        return;
-      }
       setStatus('loading', `Converting ${file.name}…`);
-      const fd = new FormData();
-      fd.append('file', file);
       try {
-        const res = await fetch(makeApiUrl('/convert'), { method: 'POST', body: fd });
-        if (!res.ok) throw new Error(`Server error ${res.status}`);
-        const data = await res.json();
-        const md = data.success != null ? (data.markdown ?? '') : (data.markdown || data.result || data.text || JSON.stringify(data));
+        let md;
+        if (backendMode === 'docling') {
+          md = await callDocling(file, null);
+        } else {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await fetch(makeApiUrl('/convert'), { method: 'POST', body: fd });
+          if (!res.ok) throw new Error(`Server error ${res.status}`);
+          const data = await res.json();
+          md = data.markdown ?? '';
+        }
         showResult(md, currentFilename);
       } catch (e) {
         setStatus('error', e.message);
       }
     } else {
-      if (!requireCloudflareUrl()) {
-        convertBtn.disabled = false;
-        return;
-      }
       setStatus('loading', 'Fetching and converting…');
       try {
-        const res = await fetch(makeApiUrl(`/convert-url?url=${encodeURIComponent(url)}`), { method: 'POST' });
-        if (!res.ok) throw new Error(`Server error ${res.status}`);
-        const data = await res.json();
-        const md = data.success != null ? (data.markdown ?? '') : (data.markdown || data.result || data.text || JSON.stringify(data));
+        let md;
+        if (backendMode === 'docling') {
+          md = await callDocling(null, url);
+        } else {
+          const res = await fetch(makeApiUrl(`/convert-url?url=${encodeURIComponent(url)}`), { method: 'POST' });
+          if (!res.ok) throw new Error(`Server error ${res.status}`);
+          const data = await res.json();
+          md = data.markdown ?? '';
+        }
         const urlHost = new URL(url).hostname.replace(/\./g, '-');
         showResult(md, urlHost);
       } catch (e) {
