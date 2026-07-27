@@ -8,13 +8,13 @@ fi
 
 SERVICE_NAME="${SERVICE_NAME:-docling-api}"
 REGION="${REGION:-us-central1}"
-API_KEY="${DOCLING_SERVE_API_KEY:-pmKnnGoF3QchPzB5Yva5qM5MUPhvyuZX}"
+API_KEY="pmKnnGoF3QchPzB5Yva5qM5MUPhvyuZX"
 DO_OCR="${DOCLING_SERVE_DO_OCR:-false}"
 
 echo "Deploying ${SERVICE_NAME} to Google Cloud Run in region ${REGION}..."
 
 gcloud run deploy "${SERVICE_NAME}" \
-  --source . \
+  --image us-central1-docker.pkg.dev/arivulabs/cloud-run-source-deploy/docling-api@sha256:ab141d17ccdb370aca5c972486d1c6014c4e3e33e57ad29bbcb83585222a1061 \
   --region "${REGION}" \
   --allow-unauthenticated \
   --port 8080 \
