@@ -467,9 +467,9 @@
     </div>
 
     <div class="section">
-      <div class="section-label">Convert URL</div>
+      <div class="section-label">Convert URL / Web Link</div>
       <div class="url-row">
-        <input type="text" id="urlInput" placeholder="https://example.com/doc.pdf" />
+        <input type="text" id="urlInput" placeholder="https://example.com, https://docs.python.org/..., or PDF link" />
       </div>
     </div>
 
@@ -479,21 +479,17 @@
         <div class="option-group">
           <label class="option-label" for="pdfBackendSelect">PDF Backend Parser</label>
           <select id="pdfBackendSelect">
-            <option value="pypdfium2" selected>pypdfium2 (Recommended - Extracts All Pages)</option>
+            <option value="pypdfium2" selected>pypdfium2 (Extracts All Native Text Pages)</option>
             <option value="docling_parse">docling_parse (DL Layout Model)</option>
             <option value="dlparse_v2">dlparse_v2 (DL Parse v2)</option>
           </select>
-          <span class="option-hint">Switch to pypdfium2 if docling_parse cuts off complex multi-page PDFs.</span>
+          <span class="option-hint">pypdfium2 parses text across all pages directly from PDF streams.</span>
         </div>
 
         <div class="option-group">
-          <label class="option-label" for="ocrModeSelect">OCR Processing</label>
-          <select id="ocrModeSelect">
-            <option value="off" selected>Off (Fastest for text PDFs)</option>
-            <option value="auto">Auto / On</option>
-            <option value="force">Force OCR (Scanned / Image Pages)</option>
-          </select>
-          <span class="option-hint">Use Force OCR if pages 2+ contain scanned images or rasterized text.</span>
+          <label class="option-label">OCR Mode</label>
+          <input type="text" value="Disabled (Text-Only)" readonly style="background:var(--border); color:var(--muted); cursor:not-allowed;" />
+          <span class="option-hint">OCR is permanently OFF. Non-text image pages or scans are skipped.</span>
         </div>
 
         <div class="option-group">
@@ -502,6 +498,12 @@
             <option value="fast" selected>Fast</option>
             <option value="accurate">Accurate (TableFormer AI)</option>
           </select>
+        </div>
+
+        <div class="option-group">
+          <label class="option-label" for="jinaApiKeyInput">Jina API Key (Optional)</label>
+          <input type="text" id="jinaApiKeyInput" placeholder="jina_..." />
+          <span class="option-hint">Free tier is 200 RPM without key. Enter key for 1,000 RPM on JS web links.</span>
         </div>
       </div>
     </div>
@@ -637,12 +639,8 @@
   }
 
   async function callDocling(file, url) {
-    const pdfBackend = pdfBackendSelect.value;
-    const ocrMode = ocrModeSelect.value;
-    const tableMode = tableModeSelect.value;
-
-    const doOcr = ocrMode !== 'off';
-    const forceOcr = ocrMode === 'force';
+    const pdfBackend = pdfBackendSelect ? pdfBackendSelect.value : 'pypdfium2';
+    const tableMode = tableModeSelect ? tableModeSelect.value : 'fast';
 
     if (file) {
       const fd = new FormData();
@@ -650,9 +648,10 @@
       fd.append('to_formats', 'md');
       fd.append('pdf_backend', pdfBackend);
       fd.append('table_mode', tableMode);
-      fd.append('do_ocr', doOcr ? 'true' : 'false');
-      fd.append('force_ocr', forceOcr ? 'true' : 'false');
+      fd.append('do_ocr', 'false');
+      fd.append('force_ocr', 'false');
       fd.append('abort_on_error', 'false');
+      fd.append('md_page_break_placeholder', '\n\n---\n\n');
 
       const res = await fetch('/docling-api/v1/convert/file', { method: 'POST', body: fd });
       if (!res.ok) throw new Error(`Docling error ${res.status}`);
@@ -662,27 +661,53 @@
       }
       return data?.document?.md_content ?? data?.result ?? '';
     } else {
-      const res = await fetch('/docling-api/v1/convert/source', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sources: [{ kind: 'http', url }],
-          options: {
-            to_formats: ['md'],
-            pdf_backend: pdfBackend,
-            table_mode: tableMode,
-            do_ocr: doOcr,
-            force_ocr: forceOcr,
-            abort_on_error: false
-          }
-        }),
-      });
-      if (!res.ok) throw new Error(`Docling error ${res.status}`);
-      const data = await res.json();
-      if (data.status === 'failure' && data.errors && data.errors.length) {
-        throw new Error(data.errors[0].error_message || 'Docling conversion failed');
+      let normalizedUrl = url.trim();
+      if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = 'https://' + normalizedUrl;
       }
-      return data?.document?.md_content ?? data?.result ?? '';
+
+      try {
+        const res = await fetch('/docling-api/v1/convert/source', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sources: [{ kind: 'http', url: normalizedUrl }],
+            options: {
+              to_formats: ['md'],
+              pdf_backend: pdfBackend,
+              table_mode: tableMode,
+              do_ocr: false,
+              force_ocr: false,
+              abort_on_error: false,
+              md_page_break_placeholder: '\n\n---\n\n'
+            }
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status !== 'failure') {
+            const md = data?.document?.md_content ?? data?.result ?? '';
+            if (md.trim().length > 100 || normalizedUrl.toLowerCase().endsWith('.pdf')) {
+              return md;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Docling direct URL conversion attempt failed:', err);
+      }
+
+      // Fallback for JS-rendered web pages/SPAs (e.g. arivulabs.ai)
+      const jinaApiKey = jinaApiKeyInput ? jinaApiKeyInput.value.trim() : '';
+      const jinaHeaders = {};
+      if (jinaApiKey) {
+        jinaHeaders['Authorization'] = `Bearer ${jinaApiKey}`;
+      }
+
+      const jinaRes = await fetch(`https://r.jina.ai/${normalizedUrl}`, { headers: jinaHeaders });
+      if (!jinaRes.ok) {
+        throw new Error(`Failed to fetch web content for ${normalizedUrl}`);
+      }
+      return await jinaRes.text();
     }
   }
 
