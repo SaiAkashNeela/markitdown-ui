@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+gunicorn
+python-multipart
+docling-slim[format-pdf,cli]
+rapidocr
+onnxruntime
+scipy
+pdfplumber
+mail-parser
+beautifulsoup4
+pylatexenc
+marko
+openpyxl
+python-docx
+python-pptx
+rtree

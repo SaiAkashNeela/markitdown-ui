@@ -160,6 +160,40 @@
     gap: 10px;
   }
 
+  .mode-group {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .mode-btn {
+    flex: 1;
+    border: none;
+    background: var(--surface);
+    color: var(--muted);
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .mode-btn + .mode-btn {
+    border-left: 1px solid var(--border);
+  }
+
+  .mode-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .mode-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+  }
+
   .backend-toggle {
     display: flex;
     align-items: center;
@@ -486,10 +520,12 @@
     <div class="section">
       <div class="section-label">Backend</div>
       <div class="backend-row">
-        <label class="backend-toggle" for="useCloudflare">
-          <input type="checkbox" id="useCloudflare" />
-          <span>Use Cloudflare</span>
-        </label>
+        <div class="mode-group" id="backendModeGroup" role="tablist" aria-label="Backend mode">
+          <button type="button" class="mode-btn active" data-mode="markitdown">MarkItDown</button>
+          <button type="button" class="mode-btn" data-mode="docling">Docling</button>
+          <button type="button" class="mode-btn" data-mode="cloudflare">Cloudflare</button>
+        </div>
+        <div class="backend-hint" id="backendHint"></div>
         <div class="backend-config" id="cloudflareConfig">
           <input type="text" id="cloudflareUrlInput" placeholder="https://your-worker.workers.dev" />
           <div class="backend-hint">Enter the deployed Worker URL, or your local wrangler dev URL while testing.</div>
@@ -532,8 +568,10 @@
   let currentTab = 'rendered';
   let currentFilename = 'output';
   const localBackendBase = '/api';
+  const doclingBackendBase = '/docling-api';
   const cloudflareUrlKey = 'markitdown.cloudflareUrl';
-  const cloudflareEnabledKey = 'markitdown.useCloudflare';
+  const backendModeKey = 'markitdown.backendMode';
+  const backendModes = ['markitdown', 'docling', 'cloudflare'];
 
   const fileInput = document.getElementById('fileInput');
   const fileLabel = document.getElementById('fileLabel');
@@ -546,31 +584,44 @@
   const copyBtn = document.getElementById('copyBtn');
   const charCount = document.getElementById('charCount');
   const dropzone = document.getElementById('dropzone');
-  const useCloudflare = document.getElementById('useCloudflare');
+  const backendModeButtons = Array.from(document.querySelectorAll('.mode-btn'));
+  const backendHint = document.getElementById('backendHint');
   const cloudflareConfig = document.getElementById('cloudflareConfig');
   const cloudflareUrlInput = document.getElementById('cloudflareUrlInput');
+  let backendMode = 'markitdown';
 
   function loadBackendPrefs() {
-    useCloudflare.checked = localStorage.getItem(cloudflareEnabledKey) === 'true';
+    const savedMode = localStorage.getItem(backendModeKey);
+    backendMode = backendModes.includes(savedMode) ? savedMode : 'markitdown';
     cloudflareUrlInput.value = localStorage.getItem(cloudflareUrlKey) || '';
     syncBackendUi();
   }
 
   function syncBackendUi() {
-    cloudflareConfig.classList.toggle('show', useCloudflare.checked);
-    if (!useCloudflare.checked) {
+    backendModeButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === backendMode);
+      btn.setAttribute('aria-selected', btn.dataset.mode === backendMode ? 'true' : 'false');
+    });
+    cloudflareConfig.classList.toggle('show', backendMode === 'cloudflare');
+    backendHint.textContent = backendMode === 'markitdown'
+      ? 'Local MarkItDown uses the backend on port 8001.'
+      : backendMode === 'docling'
+        ? 'Local Docling uses the backend on port 8003.'
+        : 'Cloudflare uses the configured Worker URL.';
+    if (backendMode !== 'cloudflare') {
       clearStatus();
     }
   }
 
   function saveBackendPrefs() {
-    localStorage.setItem(cloudflareEnabledKey, useCloudflare.checked ? 'true' : 'false');
+    localStorage.setItem(backendModeKey, backendMode);
     localStorage.setItem(cloudflareUrlKey, cloudflareUrlInput.value.trim());
   }
 
   function getApiBase() {
-    if (!useCloudflare.checked) return localBackendBase;
-    return cloudflareUrlInput.value.trim().replace(/\/+$/, '');
+    if (backendMode === 'docling') return doclingBackendBase;
+    if (backendMode === 'cloudflare') return cloudflareUrlInput.value.trim().replace(/\/+$/, '');
+    return localBackendBase;
   }
 
   function makeApiUrl(path) {
@@ -579,7 +630,7 @@
   }
 
   function requireCloudflareUrl() {
-    if (!useCloudflare.checked) return true;
+    if (backendMode !== 'cloudflare') return true;
     const base = getApiBase();
     if (!base) {
       setStatus('error', 'Enter a Cloudflare Worker URL');
@@ -623,9 +674,12 @@
     }
   });
 
-  useCloudflare.addEventListener('change', () => {
-    syncBackendUi();
-    saveBackendPrefs();
+  backendModeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      backendMode = btn.dataset.mode || 'markitdown';
+      syncBackendUi();
+      saveBackendPrefs();
+    });
   });
 
   cloudflareUrlInput.addEventListener('input', () => {

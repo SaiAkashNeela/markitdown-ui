@@ -8,10 +8,17 @@ services:
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
     restart: unless-stopped
 
+  docling:
+    build: ./docling
+    ports:
+      - "8003:8003"
+    restart: unless-stopped
+
   ui:
     build: .
     ports:
       - "8002:80"
     depends_on:
       - markitdown
+      - docling
     restart: unless-stopped
