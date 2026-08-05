@@ -1,61 +1,46 @@
-# Docling API Service
+# md-converted
 
-This repository provides the Docling Document Processing API service configured for deployment to Google Cloud Run or local execution via Docker.
+An Enterprise Multi-Engine Document to Markdown & RAG Vector Ingestion Platform.
 
-## Environment Variables
+## Conversion Engines Included
 
-Copy `.env.example` to `.env` and set your static API secret key:
+1. **Google Document AI AST Engine** (`/google-docai-api/`)
+   - Uses `layout_to_markdown.py` AST & Chunking engine.
+   - Converts Document AI JSON / PDFs into GFM Markdown and token-aware RAG vector chunks (`embedding_text`, graph relationships, bounding boxes).
 
-```bash
-cp .env.example .env
+2. **Microsoft MarkItDown** (`/markitdown-api/`)
+   - Microservice wrapping `MarkItDown()` for converting Office documents (DOCX, XLSX, PPTX) and HTML into clean Markdown.
+
+3. **IBM Docling** (`/docling-api/`)
+   - Containerized Docling Serve microservice for advanced document layout parsing.
+
+---
+
+## Directory Structure
+
+```
+md-converted/
+├── docker-compose.yml           # Unified Compose orchestrating docling, markitdown, google-docai, and ui
+├── nginx.conf                  # Reverse Proxy routing API calls
+├── Dockerfile                  # Nginx Web UI image
+├── index.html                  # Web UI with engine selector & tabbed RAG chunk viewer
+├── layout_to_markdown.py       # Production AST & RAG Chunking Library for Google Document AI
+├── markitdown_app/             # Microsoft MarkItDown FastAPI microservice
+│   ├── main.py
+│   ├── requirements.txt
+│   └── Dockerfile
+└── google_docai_app/           # Google Document AI FastAPI microservice
+    ├── main.py
+    ├── requirements.txt
+    └── Dockerfile
 ```
 
-`.env` configuration:
-- `DOCLING_SERVE_API_KEY`: The static API secret key required in the `X-Api-Key` HTTP header.
-- `DOCLING_SERVE_MAX_NUM_PAGES`: Maximum pages per document (default: 10000).
-- `DOCLING_SERVE_MAX_DOCUMENT_TIMEOUT`: Max document processing timeout in seconds (default: 600).
-- `UVICORN_PORT`: Port to run the Uvicorn server on (default: 8080).
+---
 
-## Local Development with Docker Compose
-
-Run the API service locally:
+## Quick Start with Docker
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
-The API will be available at `http://localhost:8080`.
-
-## API Authentication
-
-All requests to the API endpoints (except `/health` and `/ready`) require the `X-Api-Key` header:
-
-```bash
-curl -X POST http://localhost:8080/v1/convert/source \
-  -H "X-Api-Key: docling_secret_api_key_2026" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sources": [{"kind": "http", "url": "https://arxiv.org/pdf/2206.01062"}]
-  }'
-```
-
-## Deploying to Google Cloud Run
-
-Deploy directly using the `deploy-cloudrun.sh` script or `gcloud`:
-
-```bash
-./deploy-cloudrun.sh
-```
-
-Or run `gcloud` manually:
-
-```bash
-gcloud run deploy docling-api \
-  --source . \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --port 8080 \
-  --memory 4Gi \
-  --cpu 2 \
-  --set-env-vars "DOCLING_SERVE_API_KEY=your_static_api_secret_key_here,DOCLING_SERVE_ENABLE_UI=false,UVICORN_PORT=8080"
-```
+Open `http://localhost:8080` or `http://localhost:8003` in your browser.

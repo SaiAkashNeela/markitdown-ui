@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Docling Document Converter</title>
+<title>Unified Document to Markdown & RAG Converter</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -37,7 +37,7 @@
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
 
   header h1 {
@@ -59,7 +59,7 @@
   main {
     flex: 1;
     display: grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: 400px 1fr;
     gap: 0;
     overflow: hidden;
   }
@@ -92,698 +92,259 @@
     margin-bottom: 12px;
   }
 
-  /* Drop zone */
   .dropzone {
     border: 1.5px dashed var(--border);
     border-radius: var(--radius);
-    padding: 32px 20px;
+    padding: 28px 20px;
     text-align: center;
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-    position: relative;
+    transition: all 0.15s ease;
+    background: var(--surface);
   }
 
   .dropzone:hover, .dropzone.drag-over {
     border-color: var(--accent);
-    background: rgba(92, 107, 192, 0.05);
+    background: #1e1f2b;
   }
 
-  .dropzone input[type="file"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
-  }
+  .dropzone input { display: none; }
+  .dropzone-icon { font-size: 24px; margin-bottom: 8px; }
+  .dropzone-text { font-size: 13px; color: var(--text); }
+  .dropzone-subtext { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
-  .dropzone-icon {
-    font-size: 28px;
-    margin-bottom: 10px;
-    display: block;
-  }
-
-  .dropzone-text {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.5;
-  }
-
-  .dropzone-text strong {
-    color: var(--accent-hover);
-    font-weight: 500;
-  }
-
-  .file-selected {
+  .file-info {
+    display: none;
     margin-top: 10px;
+    padding: 8px 12px;
+    background: #222;
+    border-radius: 6px;
     font-size: 12px;
-    color: var(--success);
     font-family: var(--mono);
+    color: var(--accent-hover);
     word-break: break-all;
   }
 
-  /* URL input */
-  .url-row {
-    display: flex;
-    gap: 8px;
-  }
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
 
-  input[type="text"] {
-    flex: 1;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 9px 12px;
-    color: var(--text);
-    font-size: 13px;
-    font-family: var(--mono);
-    outline: none;
-    transition: border-color 0.15s;
-  }
-
-  input[type="text"]:focus {
-    border-color: var(--accent);
-  }
-
-  input[type="text"]::placeholder {
+  label {
+    display: block;
+    font-size: 12px;
     color: var(--muted);
+    margin-bottom: 6px;
   }
 
-  select {
+  select, input[type="text"] {
     width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 9px 12px;
     color: var(--text);
+    padding: 8px 12px;
     font-size: 13px;
     outline: none;
-    cursor: pointer;
     transition: border-color 0.15s;
   }
 
-  select:focus {
+  select:focus, input[type="text"]:focus {
     border-color: var(--accent);
   }
 
-  .options-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .option-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .option-label {
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 600;
-  }
-
-  .option-hint {
-    font-size: 11px;
-    color: var(--muted);
-    line-height: 1.3;
-  }
-
-  /* Buttons */
   .btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
     border: none;
     border-radius: var(--radius);
-    padding: 9px 16px;
+    padding: 10px;
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s, opacity 0.15s;
-    white-space: nowrap;
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .btn-secondary {
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
-
-  .btn-secondary:hover { border-color: var(--muted); }
-
-  .convert-btn {
-    width: 100%;
-    padding: 10px;
-    font-size: 14px;
-  }
-
-  /* Status */
-  .status {
-    padding: 8px 12px;
-    border-radius: var(--radius);
-    font-size: 12px;
-    font-family: var(--mono);
-    display: none;
-  }
-
-  .status.show { display: block; }
-  .status.loading { background: rgba(92,107,192,0.1); color: var(--accent-hover); }
-  .status.error { background: rgba(239,83,80,0.1); color: var(--error); }
-  .status.success { background: rgba(76,175,80,0.1); color: var(--success); }
-
-  /* Spinner */
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spinner {
-    display: inline-block;
-    width: 11px;
-    height: 11px;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-
-  /* Preview Panel */
-  .preview-header {
-    padding: 14px 28px;
-    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-
-  .preview-header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .preview-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-
-  .tab-group {
-    display: flex;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 2px;
-    gap: 2px;
-  }
-
-  .tab {
-    padding: 4px 12px;
-    font-size: 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    color: var(--muted);
-    transition: color 0.15s, background 0.15s;
-    user-select: none;
-  }
-
-  .tab.active {
-    background: var(--border);
-    color: var(--text);
-  }
-
-  .preview-actions {
-    display: flex;
-    align-items: center;
+    justify-content: center;
     gap: 8px;
   }
 
-  .char-count {
-    font-size: 12px;
-    color: var(--muted);
-    font-family: var(--mono);
-  }
+  .btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .preview-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 28px;
-  }
-
-  .preview-empty {
-    height: 100%;
+  .tabs-bar {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: var(--muted);
-    gap: 12px;
-    text-align: center;
-  }
-
-  .preview-empty-icon { font-size: 32px; opacity: 0.4; }
-
-  /* Rendered Markdown Styling */
-  .markdown-body {
-    line-height: 1.6;
-    max-width: 860px;
-    margin: 0 auto;
-  }
-
-  .markdown-body h1, .markdown-body h2, .markdown-body h3,
-  .markdown-body h4, .markdown-body h5, .markdown-body h6 {
-    margin-top: 1.4em;
-    margin-bottom: 0.6em;
-    font-weight: 600;
-    line-height: 1.25;
-  }
-
-  .markdown-body h1 { font-size: 1.8em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
-  .markdown-body h2 { font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
-  .markdown-body h3 { font-size: 1.15em; }
-
-  .markdown-body p { margin-bottom: 1em; }
-
-  .markdown-body ul, .markdown-body ol {
-    margin-bottom: 1em;
-    padding-left: 1.6em;
-  }
-
-  .markdown-body li { margin-bottom: 0.3em; }
-
-  .markdown-body code {
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 6px;
-    font-family: var(--mono);
-    font-size: 0.88em;
   }
 
-  .markdown-body pre {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
-    overflow-x: auto;
-    margin-bottom: 1em;
-  }
-
-  .markdown-body pre code {
+  .tab-btn {
     background: none;
     border: none;
-    padding: 0;
-  }
-
-  .markdown-body blockquote {
-    border-left: 3px solid var(--accent);
-    padding-left: 16px;
+    border-bottom: 2px solid transparent;
     color: var(--muted);
-    margin-bottom: 1em;
-  }
-
-  .markdown-body table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1em;
-  }
-
-  .markdown-body th, .markdown-body td {
-    border: 1px solid var(--border);
-    padding: 8px 12px;
-    text-align: left;
-  }
-
-  .markdown-body th { background: var(--surface); }
-
-  .markdown-body hr {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 2em 0;
-  }
-
-  .raw-content {
-    font-family: var(--mono);
+    padding: 14px 16px;
     font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tab-btn.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+
+  .output-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--bg);
+  }
+
+  .render-markdown { line-height: 1.6; }
+  .render-markdown h1, .render-markdown h2, .render-markdown h3 { margin-top: 1.2em; margin-bottom: 0.6em; }
+  .render-markdown table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  .render-markdown th, .render-markdown td { border: 1px solid var(--border); padding: 8px 12px; }
+
+  pre.code-out {
+    font-family: var(--mono);
+    font-size: 12px;
     white-space: pre-wrap;
-    word-break: break-word;
-    line-height: 1.5;
-    max-width: 860px;
-    margin: 0 auto;
-    color: #d4d4d4;
+    word-break: break-all;
+    color: #a9b7c6;
   }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Docling Converter</h1>
-  <span class="badge">docling-project/docling</span>
+  <h1>Document Converter Suite</h1>
+  <span class="badge">Docling | MarkItDown | Google DocAI</span>
 </header>
 
 <main>
   <div class="panel-left">
     <div class="section">
-      <div class="section-label">Upload File</div>
-      <div class="dropzone" id="dropzone">
-        <input type="file" id="fileInput" />
-        <span class="dropzone-icon">📄</span>
-        <div class="dropzone-text">
-          <strong>Click to browse</strong> or drag &amp; drop<br>
-          PDF, DOCX, PPTX, XLSX, HTML, images…
-        </div>
-        <div class="file-selected" id="fileLabel"></div>
+      <div class="section-label">1. Conversion Engine</div>
+      <div class="field">
+        <label for="engineSelect">Select Engine</label>
+        <select id="engineSelect" onchange="toggleEngineOptions()">
+          <option value="google_docai">Google Document AI (AST & RAG Engine)</option>
+          <option value="markitdown">Microsoft MarkItDown</option>
+          <option value="docling">IBM Docling</option>
+        </select>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-label">Convert URL / Web Link</div>
-      <div class="url-row">
-        <input type="text" id="urlInput" placeholder="https://example.com, https://docs.python.org/..., or PDF link" />
+      <div class="section-label">2. Input Document</div>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <div class="dropzone-icon">📄</div>
+        <div class="dropzone-text">Click or drag & drop document</div>
+        <div class="dropzone-subtext">PDF, DOCX, XLSX, PPTX, JSON</div>
+        <input type="file" id="fileInput" onchange="handleFileSelect(event)">
       </div>
+      <div class="file-info" id="fileInfo"></div>
     </div>
 
     <div class="section">
-      <div class="section-label">PDF Engine Settings</div>
-      <div class="options-grid">
-        <div class="option-group">
-          <label class="option-label" for="pdfBackendSelect">PDF Backend Parser</label>
-          <select id="pdfBackendSelect">
-            <option value="pypdfium2" selected>pypdfium2 (Extracts All Native Text Pages)</option>
-            <option value="docling_parse">docling_parse (DL Layout Model)</option>
-            <option value="dlparse_v2">dlparse_v2 (DL Parse v2)</option>
-          </select>
-          <span class="option-hint">pypdfium2 parses text across all pages directly from PDF streams.</span>
-        </div>
-
-        <div class="option-group">
-          <label class="option-label" for="ocrSelect">OCR Mode</label>
-          <select id="ocrSelect">
-            <option value="false" selected>Disabled (Fast / Native Text)</option>
-            <option value="true">Enabled (OCR Scans & Bitmaps)</option>
-          </select>
-          <span class="option-hint">Disabled by default for fast conversion. Enable to OCR scanned PDF/image pages.</span>
-        </div>
-
-        <div class="option-group">
-          <label class="option-label" for="tableModeSelect">Table Detection</label>
-          <select id="tableModeSelect">
-            <option value="accurate" selected>Accurate (TableFormer AI)</option>
-            <option value="fast">Fast</option>
-          </select>
-        </div>
-
-        <div class="option-group">
-          <label class="option-label" for="apiKeyInput">Docling API Key (Optional)</label>
-          <input type="password" id="apiKeyInput" placeholder="docling_secret_..." />
-          <span class="option-hint">If API authentication is enabled on the server, enter your API key here.</span>
-        </div>
-
-        <div class="option-group">
-          <label class="option-label" for="jinaApiKeyInput">Jina API Key (Optional)</label>
-          <input type="text" id="jinaApiKeyInput" placeholder="jina_..." />
-          <span class="option-hint">Free tier is 200 RPM without key. Enter key for 1,000 RPM on JS web links.</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div id="status" class="status"></div>
-      <button class="btn btn-primary convert-btn" id="convertBtn">Convert Document</button>
+      <button class="btn" id="convertBtn" onclick="startConversion()">Convert Document</button>
     </div>
   </div>
 
   <div class="panel-right">
-    <div class="preview-header">
-      <div class="preview-header-left">
-        <span class="preview-label">Output</span>
-        <div class="tab-group" id="tabGroup" style="display:none">
-          <div class="tab active" data-tab="rendered">Rendered</div>
-          <div class="tab" data-tab="raw">Raw</div>
-        </div>
-      </div>
-      <div class="preview-actions">
-        <span class="char-count" id="charCount"></span>
-        <button class="btn btn-secondary" id="copyBtn" style="display:none" onclick="copyMd()">Copy</button>
-        <button class="btn btn-secondary" id="downloadBtn" style="display:none" onclick="downloadMd()">Download .md</button>
-      </div>
+    <div class="tabs-bar">
+      <button class="tab-btn active" id="tabRender" onclick="switchTab('render')">Markdown Render</button>
+      <button class="tab-btn" id="tabChunks" onclick="switchTab('chunks')">RAG Chunks (JSON)</button>
+      <button class="tab-btn" id="tabRaw" onclick="switchTab('raw')">Raw Output</button>
     </div>
-    <div class="preview-content" id="previewContent">
-      <div class="preview-empty">
-        <span class="preview-empty-icon">⬡</span>
-        <p>Upload a file or enter a URL to convert</p>
-      </div>
+
+    <div class="output-area" id="outputArea">
+      <div id="renderView" class="render-markdown"><p style="color:var(--muted)">Converted document Markdown will appear here...</p></div>
+      <div id="chunksView" style="display:none;"><pre class="code-out" id="chunksCode">// RAG Chunk JSON objects will appear here...</pre></div>
+      <div id="rawView" style="display:none;"><pre class="code-out" id="rawCode">// Raw payload will appear here...</pre></div>
     </div>
   </div>
 </main>
 
 <script>
-  let currentMd = '';
-  let currentTab = 'rendered';
-  let currentFilename = 'output';
+  let selectedFile = null;
+  let activeTab = 'render';
 
-  const fileInput = document.getElementById('fileInput');
-  const fileLabel = document.getElementById('fileLabel');
-  const urlInput = document.getElementById('urlInput');
-  const pdfBackendSelect = document.getElementById('pdfBackendSelect');
-  const ocrModeSelect = document.getElementById('ocrModeSelect');
-  const tableModeSelect = document.getElementById('tableModeSelect');
-  const convertBtn = document.getElementById('convertBtn');
-  const status = document.getElementById('status');
-  const previewContent = document.getElementById('previewContent');
-  const tabGroup = document.getElementById('tabGroup');
-  const downloadBtn = document.getElementById('downloadBtn');
-  const copyBtn = document.getElementById('copyBtn');
-  const charCount = document.getElementById('charCount');
-  const dropzone = document.getElementById('dropzone');
-
-  // Drag and drop
-  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-  dropzone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropzone.classList.remove('drag-over');
-    const f = e.dataTransfer.files[0];
-    if (f) setFile(f);
-  });
-
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files[0]) setFile(fileInput.files[0]);
-  });
-
-  function setFile(f) {
-    fileInput._selectedFile = f;
-    currentFilename = f.name.replace(/\.[^.]+$/, '');
-    fileLabel.textContent = f.name;
-    urlInput.value = '';
-  }
-
-  urlInput.addEventListener('input', () => {
-    if (urlInput.value.trim()) {
-      fileInput._selectedFile = null;
-      fileLabel.textContent = '';
-      fileInput.value = '';
-    }
-  });
-
-  // Tab switching
-  document.querySelectorAll('.tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
-      currentTab = t.dataset.tab;
-      renderOutput();
-    });
-  });
-
-  function setStatus(type, msg) {
-    status.className = `status show ${type}`;
-    status.innerHTML = type === 'loading' ? `<span class="spinner"></span>${msg}` : msg;
-  }
-
-  function clearStatus() {
-    status.className = 'status';
-    status.textContent = '';
-  }
-
-  function renderOutput() {
-    if (!currentMd) return;
-    if (currentTab === 'rendered') {
-      previewContent.innerHTML = `<div class="markdown-body">${marked.parse(currentMd)}</div>`;
-    } else {
-      previewContent.innerHTML = `<div class="raw-content">${escapeHtml(currentMd)}</div>`;
+  function handleFileSelect(e) {
+    const files = e.target.files;
+    if (files.length > 0) {
+      selectedFile = files[0];
+      document.getElementById('fileInfo').innerText = selectedFile.name + " (" + (selectedFile.size / 1024).toFixed(1) + " KB)";
+      document.getElementById('fileInfo').style.display = 'block';
     }
   }
 
-  function escapeHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  function toggleEngineOptions() {}
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('renderView').style.display = tab === 'render' ? 'block' : 'none';
+    document.getElementById('chunksView').style.display = tab === 'chunks' ? 'block' : 'none';
+    document.getElementById('rawView').style.display = tab === 'raw' ? 'block' : 'none';
+
+    if (tab === 'render') document.getElementById('tabRender').classList.add('active');
+    if (tab === 'chunks') document.getElementById('tabChunks').classList.add('active');
+    if (tab === 'raw') document.getElementById('tabRaw').classList.add('active');
   }
 
-  function showResult(md, filename) {
-    currentMd = md;
-    if (filename) currentFilename = filename;
-    currentTab = 'rendered';
-    charCount.textContent = md.length ? `${md.length.toLocaleString()} chars` : '';
-    tabGroup.style.display = '';
-    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === currentTab));
-    downloadBtn.style.display = md.length ? '' : 'none';
-    copyBtn.style.display = md.length ? '' : 'none';
-    if (!md.length) {
-      previewContent.innerHTML = `<div class="preview-empty"><span class="preview-empty-icon">⚠️</span><p>No text extracted — file may be empty or selected PDF backend / OCR settings yielded no text.</p></div>`;
-      clearStatus();
+  async function startConversion() {
+    if (!selectedFile) {
+      alert("Please select a file to convert.");
       return;
     }
-    renderOutput();
-    clearStatus();
-  }
 
-  async function callDocling(file, url) {
-    const pdfBackend = pdfBackendSelect ? pdfBackendSelect.value : 'pypdfium2';
-    const tableMode = tableModeSelect ? tableModeSelect.value : 'accurate';
-    const ocrSelect = document.getElementById('ocrSelect');
-    const doOcr = ocrSelect ? (ocrSelect.value === 'true') : false;
-    const apiKeyInput = document.getElementById('apiKeyInput');
-    const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+    const engine = document.getElementById('engineSelect').value;
+    const btn = document.getElementById('convertBtn');
+    btn.disabled = true;
+    btn.innerText = "Converting...";
 
-    const reqHeaders = {};
-    if (apiKey) {
-      reqHeaders['X-Api-Key'] = apiKey;
-    }
+    const formData = new FormData();
+    formData.append("file", selectedFile);
 
-    if (file) {
-      const fd = new FormData();
-      fd.append('files', file);
-      fd.append('to_formats', 'md');
-      fd.append('pdf_backend', pdfBackend);
-      fd.append('table_mode', tableMode);
-      fd.append('do_ocr', doOcr ? 'true' : 'false');
-      fd.append('force_ocr', 'false');
-      fd.append('abort_on_error', 'false');
-      fd.append('md_page_break_placeholder', '\n\n---\n\n');
+    let apiUrl = "";
+    if (engine === "google_docai") apiUrl = "/google-docai-api/v1/convert/file";
+    else if (engine === "markitdown") apiUrl = "/markitdown-api/v1/convert/file";
+    else if (engine === "docling") apiUrl = "/docling-api/v1/convert/file";
 
-      const res = await fetch('/docling-api/v1/convert/file', {
-        method: 'POST',
-        headers: reqHeaders,
-        body: fd
-      });
-      if (!res.ok) throw new Error(`Docling error ${res.status}`);
-      const data = await res.json();
-      if (data.status === 'failure' && data.errors && data.errors.length) {
-        throw new Error(data.errors[0].error_message || 'Docling conversion failed');
-      }
-      return data?.document?.md_content ?? data?.result ?? '';
-    } else {
-      let normalizedUrl = url.trim();
-      if (!/^https?:\/\//i.test(normalizedUrl)) {
-        normalizedUrl = 'https://' + normalizedUrl;
-      }
-
-      try {
-        const res = await fetch('/docling-api/v1/convert/source', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...reqHeaders
-          },
-          body: JSON.stringify({
-            sources: [{ kind: 'http', url: normalizedUrl }],
-            options: {
-              to_formats: ['md'],
-              pdf_backend: pdfBackend,
-              table_mode: tableMode,
-              do_ocr: doOcr,
-              force_ocr: false,
-              abort_on_error: false,
-              md_page_break_placeholder: '\n\n---\n\n'
-            }
-          }),
+    try {
+      // Direct JSON upload test for Google Document AI if JSON file
+      if (engine === "google_docai" && selectedFile.name.endsWith(".json")) {
+        apiUrl = "/google-docai-api/v1/convert/json";
+        const jsonText = await selectedFile.text();
+        const jsonPayload = JSON.parse(jsonText);
+        const resp = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(jsonPayload)
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status !== 'failure') {
-            const md = data?.document?.md_content ?? data?.result ?? '';
-            if (md.trim().length > 100 || normalizedUrl.toLowerCase().endsWith('.pdf')) {
-              return md;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Docling direct URL conversion attempt failed:', err);
+        const data = await resp.json();
+        handleResponse(data);
+      } else {
+        const resp = await fetch(apiUrl, { method: "POST", body: formData });
+        const data = await resp.json();
+        handleResponse(data);
       }
-
-      // Fallback for JS-rendered web pages/SPAs (e.g. arivulabs.ai)
-      const jinaApiKey = jinaApiKeyInput ? jinaApiKeyInput.value.trim() : '';
-      const jinaHeaders = {};
-      if (jinaApiKey) {
-        jinaHeaders['Authorization'] = `Bearer ${jinaApiKey}`;
-      }
-
-      const jinaRes = await fetch(`https://r.jina.ai/${normalizedUrl}`, { headers: jinaHeaders });
-      if (!jinaRes.ok) {
-        throw new Error(`Failed to fetch web content for ${normalizedUrl}`);
-      }
-      return await jinaRes.text();
+    } catch (err) {
+      alert("Conversion Error: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Convert Document";
     }
   }
 
-  convertBtn.addEventListener('click', async () => {
-    const file = fileInput._selectedFile;
-    const url = urlInput.value.trim();
-
-    if (!file && !url) {
-      setStatus('error', 'Provide a file or URL');
-      return;
-    }
-
-    convertBtn.disabled = true;
-
-    if (file) {
-      setStatus('loading', `Converting ${file.name}…`);
-      try {
-        const md = await callDocling(file, null);
-        showResult(md, currentFilename);
-      } catch (e) {
-        setStatus('error', e.message);
-      }
-    } else {
-      setStatus('loading', 'Fetching and converting…');
-      try {
-        const md = await callDocling(null, url);
-        const urlHost = new URL(url).hostname.replace(/\./g, '-');
-        showResult(md, urlHost);
-      } catch (e) {
-        setStatus('error', e.message);
-      }
-    }
-
-    convertBtn.disabled = false;
-  });
-
-  function downloadMd() {
-    const blob = new Blob([currentMd], { type: 'text/markdown' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${currentFilename}.md`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  async function copyMd() {
-    await navigator.clipboard.writeText(currentMd);
-    const btn = document.getElementById('copyBtn');
-    btn.textContent = 'Copied!';
-    setTimeout(() => btn.textContent = 'Copy', 1500);
+  function handleResponse(data) {
+    const md = data.markdown || data.text_content || str(data);
+    document.getElementById('renderView').innerHTML = marked.parse(md);
+    document.getElementById('chunksView').querySelector('pre').innerText = JSON.stringify(data.chunks || [], null, 2);
+    document.getElementById('rawView').querySelector('pre').innerText = JSON.stringify(data, null, 2);
   }
 </script>
+
 </body>
 </html>

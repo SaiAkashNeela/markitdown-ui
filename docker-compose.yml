@@ -1,17 +1,48 @@
+version: '3.8'
+
 services:
   docling:
     image: quay.io/docling-project/docling-serve:latest
+    container_name: md-converted-docling
     ports:
       - "8002:5001"
+    restart: unless-stopped
+
+  markitdown:
+    build:
+      context: .
+      dockerfile: markitdown_app/Dockerfile
+    container_name: md-converted-markitdown
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  google-docai:
+    build:
+      context: .
+      dockerfile: google_docai_app/Dockerfile
+    container_name: md-converted-google-docai
+    ports:
+      - "8004:8004"
+    volumes:
+      - /Users/saiakashneela/github/arivulabs/server/gcp-creds.json:/app/gcp-creds.json:ro
     environment:
-      - DOCLING_SERVE_MAX_NUM_PAGES=10000
-      - DOCLING_SERVE_MAX_DOCUMENT_TIMEOUT=600
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-creds.json
+      - GCP_PROJECT_ID=94558928138
+      - GCP_LOCATION=eu
+      - GCP_PROCESSOR_ID=7eb6658b4115ca8c
     restart: unless-stopped
 
   ui:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: md-converted-ui
     ports:
-      - "8003:80"
+      - "8080:8080"
+      - "8003:8080"
     depends_on:
       - docling
+      - markitdown
+      - google-docai
     restart: unless-stopped
