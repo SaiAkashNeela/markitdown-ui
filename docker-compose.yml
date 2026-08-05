@@ -10,8 +10,8 @@ services:
 
   markitdown:
     build:
-      context: .
-      dockerfile: markitdown_app/Dockerfile
+      context: ./markitdown_app
+      dockerfile: Dockerfile
     container_name: md-converted-markitdown
     ports:
       - "8001:8001"
